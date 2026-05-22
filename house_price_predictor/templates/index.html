@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>House Price Predictor</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    p.subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #444;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 15px;
+      box-sizing: border-box;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #4a90e2;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #357abd;
+    }
+
+    .result {
+      margin-top: 25px;
+      padding: 20px;
+      background-color: #e8f4e8;
+      border: 1px solid #a3d9a3;
+      border-radius: 8px;
+      text-align: center;
+      display: none;
+    }
+
+    .result h2 {
+      color: #2e7d32;
+      margin-bottom: 8px;
+    }
+
+    .result .price {
+      font-size: 32px;
+      font-weight: bold;
+      color: #1b5e20;
+    }
+
+    .result .range {
+      color: #555;
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    .error {
+      margin-top: 15px;
+      padding: 12px;
+      background-color: #fdecea;
+      border: 1px solid #f5c6cb;
+      border-radius: 6px;
+      color: #c0392b;
+      display: none;
+    }
+
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .stat {
+      background: white;
+      padding: 14px 20px;
+      border-radius: 8px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.08);
+    }
+
+    .stat .value {
+      font-size: 22px;
+      font-weight: bold;
+      color: #4a90e2;
+    }
+
+    .stat .label {
+      font-size: 12px;
+      color: #888;
+      margin-top: 3px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🏠 House Price Predictor</h1>
+  <p class="subtitle">Prodigy Infotech — Task 01 · Linear Regression Model</p>
+
+  <!-- Model Stats -->
+  <div class="stats">
+    <div class="stat">
+      <div class="value">{{ "%.1f"|format(metrics.r2 * 100) }}%</div>
+      <div class="label">R² Accuracy</div>
+    </div>
+    <div class="stat">
+      <div class="value">${{ "{:,.0f}".format(metrics.rmse) }}</div>
+      <div class="label">Avg. Error (RMSE)</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ "{:,}".format(metrics.n_samples) }}</div>
+      <div class="label">Training Samples</div>
+    </div>
+  </div>
+
+  <!-- Input Form -->
+  <div class="container">
+
+    <label for="sqft">Square Footage (sq ft)</label>
+    <input type="number" id="sqft" placeholder="e.g. 2000" min="100" max="15000" />
+
+    <label for="bedrooms">Number of Bedrooms</label>
+    <input type="number" id="bedrooms" placeholder="e.g. 3" min="1" max="10" />
+
+    <label for="bathrooms">Number of Bathrooms</label>
+    <input type="number" id="bathrooms" placeholder="e.g. 2" min="1" max="8" />
+
+    <button onclick="predict()">Predict Price</button>
+
+    <!-- Error message -->
+    <div class="error" id="error-box"></div>
+
+    <!-- Result -->
+    <div class="result" id="result-box">
+      <h2>Estimated Price</h2>
+      <div class="price" id="result-price">—</div>
+      <div class="range" id="result-range">—</div>
+    </div>
+
+  </div>
+
+  <script>
+    async function predict() {
+      const sqft      = +document.getElementById('sqft').value;
+      const bedrooms  = +document.getElementById('bedrooms').value;
+      const bathrooms = +document.getElementById('bathrooms').value;
+
+      const errorBox  = document.getElementById('error-box');
+      const resultBox = document.getElementById('result-box');
+
+      // Hide previous results
+      errorBox.style.display  = 'none';
+      resultBox.style.display = 'none';
+
+      // Basic validation
+      if (!sqft || sqft < 100) {
+        errorBox.textContent = 'Please enter a valid square footage (at least 100).';
+        errorBox.style.display = 'block';
+        return;
+      }
+      if (!bedrooms || bedrooms < 1) {
+        errorBox.textContent = 'Please enter a valid number of bedrooms.';
+        errorBox.style.display = 'block';
+        return;
+      }
+      if (!bathrooms || bathrooms < 1) {
+        errorBox.textContent = 'Please enter a valid number of bathrooms.';
+        errorBox.style.display = 'block';
+        return;
+      }
+
+      // Call the backend
+      try {
+        const response = await fetch('/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sqft, bedrooms, bathrooms })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          errorBox.textContent = data.error;
+          errorBox.style.display = 'block';
+          return;
+        }
+
+        // Show result
+        const fmt = v => '$' + Math.round(v).toLocaleString('en-US');
+        document.getElementById('result-price').textContent = fmt(data.price);
+        document.getElementById('result-range').textContent =
+          'Estimated range: ' + fmt(data.low) + ' – ' + fmt(data.high);
+
+        resultBox.style.display = 'block';
+
+      } catch (err) {
+        errorBox.textContent = 'Something went wrong. Make sure the server is running.';
+        errorBox.style.display = 'block';
+      }
+    }
+  </script>
+
+</body>
+</html>
